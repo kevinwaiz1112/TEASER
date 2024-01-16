@@ -6,6 +6,7 @@ record ${zone.parent.name}_${zone.name} "${zone.parent.name}_${zone.name}"
     withAirCap = ${get_true_false(zone.parent.library_attr.consider_heat_capacity)},
     VAir = ${zone.volume},
     AZone = ${zone.area},
+    AZone_gains = 1,
     hRad = ${zone.model_attr.alpha_rad_inner_mean},
     lat = ${deg_to_rad(zone.parent.latitude)},
     nOrientations = ${min_orientations(zone.model_attr.n_outer)},

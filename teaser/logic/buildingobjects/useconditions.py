@@ -485,6 +485,58 @@ class UseConditions(object):
         self.schedules["lighting_profile"] = list(islice(cycle(value), 8760))
 
     @property
+    def activity_degree_persons(self):
+        return self._activity_degree_persons
+
+    @activity_degree_persons.setter
+    def activity_degree_persons(self, value):
+        if isinstance(value, int):
+            # Konvertiere int in float
+            value = float(value)
+        if not isinstance(value, float):
+            raise ValueError("activity_degree_persons muss ein float-Wert sein.")
+        self._activity_degree_persons = value
+
+    @property
+    def machines(self):
+        return self._machines
+
+    @machines.setter
+    def machines(self, value):
+        if isinstance(value, int):
+            # Konvertiere int in float
+            value = float(value)
+        if not isinstance(value, float):
+            raise ValueError("machines muss ein float-Wert sein.")
+        self._machines = value
+
+    @property
+    def lighting_power(self):
+        return self._lighting_power
+
+    @lighting_power.setter
+    def lighting_power(self, value):
+        if isinstance(value, int):
+            # Konvertiere int in float
+            value = float(value)
+        if not isinstance(value, float):
+            raise ValueError("lighting_power muss ein float-Wert sein.")
+        self._lighting_power = value
+
+    @property
+    def _persons(self):
+        return self.__persons
+
+    @_persons.setter
+    def _persons(self, value):
+        if isinstance(value, int):
+            # Konvertiere int in float
+            value = float(value)
+        if not isinstance(value, float):
+            raise ValueError("_persons muss ein float-Wert sein.")
+        self.__persons = value
+
+    @property
     def parent(self):
         return self._parent
 
