@@ -94,7 +94,7 @@ def import_data(path=None, sheet_names=None):
         data = pd.DataFrame()
         _data = pd.read_excel(io=path, sheet_name=sheet_names, header=0, index_col=None)
         for sheet in sheet_names:
-            data = data.append(_data[sheet], sort=False)
+            data = data._append(_data[sheet], sort=False)
         data = data.reset_index(drop=False)
         data["index"] = data["index"] + 2  # sync the index with the excel index
     else:
