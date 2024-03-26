@@ -105,7 +105,7 @@ record ${zone.parent.name}_${zone.name} "${zone.parent.name}_${zone.name}"
     withAHU = ${get_true_false(zone.use_conditions.with_ahu)},
     minAHU = ${zone.use_conditions.min_ahu},
     maxAHU = ${zone.use_conditions.max_ahu},
-    hHeat = ${zone.model_attr.heat_load},
+    hHeat = ${zone.model_attr.heat_load}*10,
     lHeat = 0,
     KRHeat = 10000,
     TNHeat = 1,
