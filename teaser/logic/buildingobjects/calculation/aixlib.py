@@ -300,6 +300,9 @@ class AixLib(object):
             export[
                 "lighting_{}".format(zone_count.name)
             ] = zone_count.use_conditions.schedules["lighting_profile"]
+            export[
+                "person_std_{}".format(zone_count.name)
+            ] = zone_count.use_conditions.schedules["persons_profile"]
 
         export.index = [(i + 1) * 3600 for i in range(8760)]
         self._delete_file(path=path)
@@ -307,7 +310,7 @@ class AixLib(object):
             f.write("#1\n")
             f.write(
                 "double Internals({}, {})\n".format(
-                    8760, (len(self.parent.thermal_zones) * 3 + 1)
+                    8760, (len(self.parent.thermal_zones) * 4 + 1)
                 )
             )
             export.to_csv(f, sep="\t", header=False, index_label=False)
