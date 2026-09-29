@@ -520,6 +520,22 @@ class Wall(BuildingElement):
         """
         this_use = self.parent.use_conditions
         other_use = self.other_side.use_conditions
+
+        # A bidirectional interzonal RC network must not depend on an assumed
+        # direction of heat flow. Keep the physical element explicit and orient
+        # complementary element pairs only by the deterministic zone index.
+        # Thus one side loads the ordered construction and the other side its
+        # reversed counterpart, while the AixLib heat-port flow remains free to
+        # change sign continuously at run time.
+        if method == 'bidirectional_2c':
+            zones = self.parent.parent.thermal_zones
+            this_index = zones.index(self.parent)
+            other_index = zones.index(self.other_side)
+            return (
+                'outer_ordered' if this_index < other_index
+                else 'outer_reversed'
+            )
+
         if method == 'heating_difference':
             if ((other_use.with_heating and this_use.with_heating)
                     or (not other_use.with_heating

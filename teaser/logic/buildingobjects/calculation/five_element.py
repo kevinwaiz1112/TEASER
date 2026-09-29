@@ -593,7 +593,21 @@ class FiveElement(object):
         self.r1_nzb = []
         self.r_rest_nzb = []
         self.c1_nzb = []
+        # Generic interzonal RC arrays used by the Modelica export. The
+        # established methods use one RC element. 'bidirectional_2c' uses the
+        # complete VDI 6007 3R2C element: R1-C1-R3-C2-R2.
+        self.n_nzb = 1
+        self.r_nzb = []
+        self.c_nzb = []
         self.r_total_nzb = []
+
+        # Interzonal convection metadata for AixLib. Method 3 keeps the
+        # historical constant coefficient; method 2 activates AixLib's smooth
+        # temperature-dependent Glueck correlation. Surface orientation follows
+        # AixLib.Utilities.HeatTransfer.HeatConvInside:
+        # 1=vertical, 2=horizontal facing up, 3=horizontal facing down.
+        self.h_con_calc_method_nzb = []
+        self.surface_orientation_nzb = []
 
         # Optical properties
         self.ir_emissivity_outer_nzb = []
@@ -1181,6 +1195,52 @@ class FiveElement(object):
         self.alpha_rad_outer_win = 1 / (self.r_rad_outer_win * self.area_win)
         self.alpha_comb_outer_win = 1 / (self.r_comb_outer_win * self.area_win)
 
+    def _uses_bidirectional_interzonal_2c(self):
+        """Return whether the project requests bidirectional 3R2C borders."""
+        return (
+            self.thermal_zone.parent.parent.method_interzonal_export
+            == 'bidirectional_2c'
+        )
+
+    @staticmethod
+    def _interzonal_border_sort_key(element):
+        """Stable, direction-independent key for paired zone borders.
+
+        AixLib connects repeated borders between the same two zones by their
+        occurrence order. Counterpart TEASER elements therefore need the same
+        ordering on both sides. Area and the canonicalized layer signature come
+        before the local element name, because a physical floor/ceiling pair has
+        different names on its two sides. The layer signature is canonicalized
+        against its reversed representation so it is independent of which zone
+        owns the element.
+        """
+        layer_signature = tuple(
+            (
+                round(layer.thickness, 12),
+                round(layer.material.thermal_conduc, 12),
+                round(layer.material.density, 9),
+                round(layer.material.heat_capac, 9),
+            )
+            for layer in element.layer
+        )
+        reverse_signature = tuple(reversed(layer_signature))
+        canonical_layers = min(layer_signature, reverse_signature)
+        return (
+            round(element.area, 9),
+            canonical_layers,
+            '' if element.name is None else str(element.name),
+        )
+
+    @staticmethod
+    def _surface_orientation_for_interzonal(element):
+        """Map a TEASER interzonal element to AixLib HeatConvInside."""
+        class_name = type(element).__name__
+        if class_name == 'InterzonalFloor':
+            return 2  # horizontal surface facing up
+        if class_name == 'InterzonalCeiling':
+            return 3  # horizontal surface facing down
+        return 1  # vertical wall (and conservative fallback)
+
     def _sum_interzonal_elements(self):
         """Sum attributes for neighboured zone border elements
 
@@ -1189,23 +1249,61 @@ class FiveElement(object):
         transfer, resistances, areas and UA-Values.
 
         """
-        other_nz_indexes = set()
-        for nz_border in self.thermal_zone.find_izes_outer(add_reversed=True):
-            other_nz_indexes.add(self.thermal_zone.parent.thermal_zones.index(
-                nz_border.other_side
-            ))
-        self.other_nz_indexes = list(other_nz_indexes)
-        self.nzbs_per_nz = []
-        for nz_index in self.other_nz_indexes:
-            other_nz = self.thermal_zone.parent.thermal_zones[nz_index]
-            self.nzbs_per_nz.append([])
-            for nz_border \
-                    in self.thermal_zone.find_izes_outer(add_reversed=True):
-                if nz_border.other_side is other_nz:
-                    self.nzbs_per_nz[-1].append(nz_border)
-                    nz_border.idx_orientation = nz_index
+        borders = self.thermal_zone.find_izes_outer(add_reversed=True)
+
+        if self._uses_bidirectional_interzonal_2c():
+            # Do not lump several physical borders to the same adjacent zone.
+            # The full VDI 6007 3R2C network is available for every individual
+            # element, while an exact parallel reduction to one 3R2C ladder is
+            # not generally possible. AixLib already supports repeated NZ
+            # ports to the same zone and connects them by occurrence order.
+            borders = sorted(borders, key=self._interzonal_border_sort_key)
+            self.other_nz_indexes = []
+            self.nzbs_per_nz = []
+            for nz_border in borders:
+                nz_index = self.thermal_zone.parent.thermal_zones.index(
+                    nz_border.other_side
+                )
+                self.other_nz_indexes.append(nz_index)
+                self.nzbs_per_nz.append([nz_border])
+                nz_border.idx_orientation = nz_index
+        else:
+            other_nz_indexes = set()
+            for nz_border in borders:
+                other_nz_indexes.add(
+                    self.thermal_zone.parent.thermal_zones.index(
+                        nz_border.other_side
+                    )
+                )
+            self.other_nz_indexes = list(other_nz_indexes)
+            self.nzbs_per_nz = []
+            for nz_index in self.other_nz_indexes:
+                other_nz = self.thermal_zone.parent.thermal_zones[nz_index]
+                self.nzbs_per_nz.append([])
+                for nz_border in borders:
+                    if nz_border.other_side is other_nz:
+                        self.nzbs_per_nz[-1].append(nz_border)
+                        nz_border.idx_orientation = nz_index
 
         self.area_nzb = _lump_sum(self.nzbs_per_nz, 'area')
+
+        # For the bidirectional 3R2C mode, horizontal interzonal surfaces use
+        # AixLib's temperature-dependent natural-convection correlation. This
+        # lets a floor/ceiling pair change from upward to downward heat transfer
+        # without a structural switch. Vertical walls retain TEASER's historical
+        # constant coefficient for backward-compatible behaviour.
+        if self._uses_bidirectional_interzonal_2c():
+            self.surface_orientation_nzb = [
+                self._surface_orientation_for_interzonal(elements[0])
+                for elements in self.nzbs_per_nz
+            ]
+            self.h_con_calc_method_nzb = [
+                2 if orientation in (2, 3) else 3
+                for orientation in self.surface_orientation_nzb
+            ]
+        else:
+            self.surface_orientation_nzb = [1 for _ in self.nzbs_per_nz]
+            self.h_con_calc_method_nzb = [3 for _ in self.nzbs_per_nz]
 
         self.ua_value_nzb = _lump_sum(self.nzbs_per_nz, 'ua_value')
 
@@ -1493,22 +1591,60 @@ class FiveElement(object):
             )
 
     def _calc_interzonal_elements(self):
-        """Lumped parameter for neighboured zone border elements
+        """Lumped parameter for neighboured zone border elements.
 
-        Calculates lumped parameters for borders to
-        neighboured zones. No windows allowed.
+        The established export methods retain the historical one-capacity
+        reduction. ``bidirectional_2c`` exports each physical border as the
+        full VDI 6007 3R2C network, ordered geometrically from the current zone
+        to the adjacent zone::
 
-        Attributes
-        ----------
-        omega : float [1/s]
-            angular frequency with given time period.
+            port_a - R1 - C1 - R3 - C2 - R2 - port_b
+
+        This network is passive and reciprocal. Hence a temperature/setpoint
+        ordering change during simulation only changes the sign of the heat
+        flow; it does not require switching RC parameters or topology.
         """
 
         omega = 2 * math.pi / 86400 / self.t_bt
 
-        any_nzb = False
         self.r1_nzb = []
+        self.r_rest_nzb = []
         self.c1_nzb = []
+        self.r_nzb = []
+        self.c_nzb = []
+
+        if self._uses_bidirectional_interzonal_2c():
+            self.n_nzb = 2
+            for nz_borders in self.nzbs_per_nz:
+                if len(nz_borders) != 1:
+                    raise RuntimeError(
+                        "bidirectional_2c expects one physical interzonal "
+                        "element per exported NZ port."
+                    )
+                border = nz_borders[0]
+                values = (border.r1, border.r3, border.r2,
+                          border.c1, border.c2)
+                if not all(np.isfinite(value) and value > 0 for value in values):
+                    raise ValueError(
+                        "The VDI 6007 3R2C reduction of interzonal element "
+                        f"'{border.name}' contains non-positive or non-finite "
+                        f"parameters: R1={border.r1}, R3={border.r3}, "
+                        f"R2={border.r2}, C1={border.c1}, C2={border.c2}."
+                    )
+
+                r1 = float(border.r1)
+                r3 = float(border.r3)
+                r2 = float(border.r2)
+                c1 = float(border.c1)
+                c2 = float(border.c2)
+                self.r1_nzb.append(r1)
+                self.r_rest_nzb.append(r2)
+                self.c1_nzb.append(c1)
+                self.r_nzb.append([r1, r3])
+                self.c_nzb.append([c1, c2])
+            return
+
+        self.n_nzb = 1
         for nz_borders in self.nzbs_per_nz:
             if 0 < len(nz_borders) <= 1:
                 # only one nz border, no need to calculate chain matrix
@@ -1537,6 +1673,15 @@ class FiveElement(object):
                     self.r1_nzb.append(r1_nzb)
                     self.r_rest_nzb.append(conduction - self.r1_nzb[-1])
                 self.c1_nzb.append(c1_nzb)
+
+        # Convert NumPy scalars to plain Python floats before handing them
+        # to the Mako template. This keeps generated Modelica syntax free of
+        # NumPy-specific repr strings on recent NumPy versions.
+        self.r1_nzb = [float(value) for value in self.r1_nzb]
+        self.r_rest_nzb = [float(value) for value in self.r_rest_nzb]
+        self.c1_nzb = [float(value) for value in self.c1_nzb]
+        self.r_nzb = [[value] for value in self.r1_nzb]
+        self.c_nzb = [[value] for value in self.c1_nzb]
 
     def _calc_wf(self):
         """Weightfactors for outer elements(walls, roof, ground floor, windows)
@@ -1973,7 +2118,21 @@ class FiveElement(object):
         self.r1_nzb = []
         self.r_rest_nzb = []
         self.c1_nzb = []
+        # Generic interzonal RC arrays used by the Modelica export. The
+        # established methods use one RC element. 'bidirectional_2c' uses the
+        # complete VDI 6007 3R2C element: R1-C1-R3-C2-R2.
+        self.n_nzb = 1
+        self.r_nzb = []
+        self.c_nzb = []
         self.r_total_nzb = []
+
+        # Interzonal convection metadata for AixLib. Method 3 keeps the
+        # historical constant coefficient; method 2 activates AixLib's smooth
+        # temperature-dependent Glueck correlation. Surface orientation follows
+        # AixLib.Utilities.HeatTransfer.HeatConvInside:
+        # 1=vertical, 2=horizontal facing up, 3=horizontal facing down.
+        self.h_con_calc_method_nzb = []
+        self.surface_orientation_nzb = []
 
         # Optical properties
         self.ir_emissivity_outer_nzb = []

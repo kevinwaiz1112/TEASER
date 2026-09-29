@@ -124,6 +124,14 @@ class Project(object):
                                  setpoint is clearly lower, an outer envelope
                                  type element is loaded, with the outer layer on
                                  the "less conditioned" side.
+        'bidirectional_2c': Export all non-explicitly-inner interzonal borders
+                            as zone borders independent of setpoint ordering.
+                            In the FiveElement AixLib export, use the full VDI
+                            6007 3R2C wall network (R1-C1-R3-C2-R2) so that
+                            heat-flow reversal does not require a model switch.
+                            This option is intended primarily for
+                            method_interzonal_export. Material enrichment can
+                            remain on its established method.
     method_interzonal_export : str
         Method used to choose the way to export interzonal elements. Valid
         strings are the same as for method_interzonal_material_enrichment.
@@ -1409,7 +1417,8 @@ class Project(object):
     @method_interzonal_material_enrichment.setter
     def method_interzonal_material_enrichment(self, value):
         assert type(value) is str
-        assert (value in ('heating_difference', 'cooling_difference')
+        assert (value in ('heating_difference', 'cooling_difference',
+                             'bidirectional_2c')
                 or value.startswith('setpoint_difference_'))
         if value.startswith('setpoint_difference_'):
             try:
@@ -1428,7 +1437,8 @@ class Project(object):
     @method_interzonal_export.setter
     def method_interzonal_export(self, value):
         assert type(value) is str
-        assert (value in ('heating_difference', 'cooling_difference')
+        assert (value in ('heating_difference', 'cooling_difference',
+                             'bidirectional_2c')
                 or value.startswith('setpoint_difference_'))
         if value.startswith('setpoint_difference_'):
             try:
