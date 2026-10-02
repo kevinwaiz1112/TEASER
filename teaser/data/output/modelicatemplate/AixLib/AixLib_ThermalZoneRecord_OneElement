@@ -1,4 +1,44 @@
 <%namespace file="/modelica_language/" import="get_true_false, get_list, min_orientations"/> <%namespace file="/conversion/" import="deg_to_rad, azmiut_conv"/>
+
+<%
+_heat_scenario = bool(getattr(zone, "heating_system_scenario_enabled", False))
+_heat_q_design = max(float(zone.model_attr.heat_load), 0.0)
+_heat_sizing = float(getattr(zone, "heating_sizing_factor", 10.0))
+_heat_zone_sizing = float(getattr(zone, "heating_zone_sizing_factor", 1.0))
+_heat_emitter_code = int(getattr(zone, "heating_emitter_class_code", 0))
+_heat_pb = max(float(getattr(zone, "heating_proportional_band_K", 1.0)), 1e-6)
+_heat_tn = max(float(getattr(zone, "heating_integral_time_s", 1.0)), 1e-6)
+_heat_tau = max(float(getattr(zone, "heating_delivery_time_constant_s", 0.0)), 0.0)
+_heat_slow_cap = max(float(getattr(zone, "heating_slow_surface_power_cap_W_m2", 1.0e12)), 0.0)
+if _heat_scenario:
+    _heat_qmax_raw = _heat_q_design * _heat_sizing * _heat_zone_sizing
+    _heat_qmax = min(_heat_qmax_raw, _heat_slow_cap * float(zone.area)) if _heat_emitter_code == 3 else _heat_qmax_raw
+    _heat_kr = _heat_qmax / _heat_pb if _heat_qmax > 0 else 0.0
+else:
+    _heat_qmax = _heat_q_design * 10.0
+    _heat_kr = 10000.0
+    _heat_tn = 1.0
+    _heat_tau = 0.0
+
+_cool_scenario = bool(getattr(zone, "cooling_system_scenario_enabled", False))
+_cool_class_code = int(getattr(zone, "cooling_delivery_class_code", 0))
+_cool_specific_capacity = max(float(getattr(zone, "cooling_specific_capacity_W_m2", 0.0)), 0.0)
+_cool_zone_factor = max(float(getattr(zone, "cooling_zone_capacity_factor", 1.0)), 0.0)
+_cool_pb = max(float(getattr(zone, "cooling_proportional_band_K", 1.0)), 1e-6)
+_cool_tn = max(float(getattr(zone, "cooling_integral_time_s", 1.0)), 1e-6)
+_cool_tau = max(float(getattr(zone, "cooling_delivery_time_constant_s", 0.0)), 0.0)
+if _cool_scenario:
+    _cool_q_nominal = max(float(zone.area), 0.0) * _cool_specific_capacity
+    _cool_qmax = _cool_q_nominal * _cool_zone_factor
+    _cool_kr = _cool_qmax / _cool_pb if _cool_qmax > 0 else 0.0
+else:
+    # Keep legacy TEASER behaviour when the cooling scenario is disabled.
+    _cool_q_nominal = abs(float(zone.model_attr.cool_load))
+    _cool_qmax = abs(float(zone.model_attr.cool_load))
+    _cool_kr = 10000.0
+    _cool_tn = 1.0
+    _cool_tau = 0.0
+%>
 within ${zone.parent.parent.name}.${zone.parent.name}.${zone.parent.name}_DataBase;
 record ${zone.parent.name}_${zone.name} "${zone.parent.name}_${zone.name}"
   extends AixLib.DataBase.ThermalZones.ZoneBaseRecord(
@@ -99,17 +139,31 @@ record ${zone.parent.name}_${zone.name} "${zone.parent.name}_${zone.name}"
     withAHU = ${get_true_false(zone.use_conditions.with_ahu)},
     minAHU = ${zone.use_conditions.min_ahu},
     maxAHU = ${zone.use_conditions.max_ahu},
-    hHeat = ${zone.model_attr.heat_load},
+    QHeatDesign = ${_heat_q_design},
+    heatSizingFactor = ${_heat_sizing if _heat_scenario else 1.0},
+    heatZoneSizingFactor = ${_heat_zone_sizing if _heat_scenario else 1.0},
+    emitterClass = ${_heat_emitter_code if _heat_scenario else 0},
+    heatProportionalBand = ${_heat_pb if _heat_scenario else 1.0},
+    useHeatDeliveryDynamics = ${get_true_false(_heat_scenario and _heat_tau > 0)},
+    tauHeatDelivery = ${_heat_tau if _heat_scenario else 1.0},
+    hHeat = ${_heat_qmax if _heat_scenario else _heat_q_design},
     lHeat = 0,
-    KRHeat = 10000,
-    TNHeat = 1,
+    KRHeat = ${_heat_kr if _heat_scenario else 10000.0},
+    TNHeat = ${_heat_tn if _heat_scenario else 1.0},
     HeaterOn = ${get_true_false(zone.use_conditions.with_heating)},
+    QCoolNominal = ${_cool_q_nominal},
+    coolSpecificCapacity = ${_cool_specific_capacity if _cool_scenario else 0.0},
+    coolZoneCapacityFactor = ${_cool_zone_factor if _cool_scenario else 1.0},
+    coolingDeliveryClass = ${_cool_class_code if _cool_scenario else 0},
+    coolProportionalBand = ${_cool_pb if _cool_scenario else 1.0},
+    useCoolDeliveryDynamics = ${get_true_false(_cool_scenario and _cool_tau > 0)},
+    tauCoolDelivery = ${_cool_tau if _cool_scenario else 1.0},
     hCool = 0,
-    lCool = ${zone.model_attr.cool_load},
+    lCool = ${-_cool_qmax},
     heaLoadFacOut = 1,
     heaLoadFacGrd = 1,
-    KRCool = 10000,
-    TNCool = 1,
+    KRCool = ${_cool_kr},
+    TNCool = ${_cool_tn},
     CoolerOn = ${get_true_false(zone.use_conditions.with_cooling)},
     withIdealThresholds = ${get_true_false(zone.use_conditions.with_ideal_thresholds)},
     TThresholdHeater = ${zone.use_conditions.T_threshold_heating},

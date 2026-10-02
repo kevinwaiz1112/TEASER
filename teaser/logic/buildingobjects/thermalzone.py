@@ -137,6 +137,33 @@ class ThermalZone(object):
         self._number_of_floors = None
         self._height_of_floors = None
 
+        # Optional simplified heat-delivery/controller scenario.  These
+        # attributes are deliberately kept on ThermalZone rather than
+        # UseConditions because they describe the ROM heat-delivery abstraction,
+        # not occupant use.  Defaults reproduce the legacy TEASER export.
+        self.heating_system_scenario_enabled = False
+        self.heating_emitter_class = "legacy_ideal"
+        self.heating_emitter_class_code = 0
+        self.heating_sizing_factor = 10.0
+        self.heating_zone_sizing_factor = 1.0
+        self.heating_proportional_band_K = 1.0
+        self.heating_integral_time_s = 1.0
+        self.heating_delivery_time_constant_s = 0.0
+        self.heating_slow_surface_power_cap_W_m2 = 1.0e12
+
+        # Optional simplified cooling/controller scenario. Defaults preserve the
+        # legacy TEASER export. Cooling capacity is intentionally independent
+        # of model_attr.cool_load because the legacy ROM calculation sets that
+        # value from the heating load rather than from a cooling-load design.
+        self.cooling_system_scenario_enabled = False
+        self.cooling_delivery_class = "legacy_ideal"
+        self.cooling_delivery_class_code = 0
+        self.cooling_specific_capacity_W_m2 = 0.0
+        self.cooling_zone_capacity_factor = 1.0
+        self.cooling_proportional_band_K = 1.0
+        self.cooling_integral_time_s = 1.0
+        self.cooling_delivery_time_constant_s = 0.0
+
     def calc_zone_parameters(
             self,
             number_of_elements=2,
