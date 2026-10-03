@@ -132,7 +132,7 @@ class AixLib(object):
         path = os.path.join(path, self.file_set_t_heat)
 
         export = pd.DataFrame(
-            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="H")
+            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="h")
             .to_series()
             .dt.strftime("%m-%d %H:%M:%S"),
             columns=[zone.name for zone in self.parent.thermal_zones],
@@ -174,7 +174,7 @@ class AixLib(object):
         path = os.path.join(path, self.file_set_t_cool)
 
         export = pd.DataFrame(
-            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="H")
+            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="h")
             .to_series()
             .dt.strftime("%m-%d %H:%M:%S"),
             columns=[zone.name for zone in self.parent.thermal_zones],
@@ -235,7 +235,7 @@ class AixLib(object):
             export = self.parent.central_ahu.schedules
         else:  # Dummy values for Input Table
             export = pd.DataFrame(
-                index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="H")
+                index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="h")
                 .to_series()
                 .dt.strftime("%m-%d %H:%M:%S")
             )
@@ -285,7 +285,7 @@ class AixLib(object):
         path = os.path.join(path, self.file_internal_gains)
 
         export = pd.DataFrame(
-            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="H")
+            index=pd.date_range("2019-01-01 00:00:00", periods=8760, freq="h")
             .to_series()
             .dt.strftime("%m-%d %H:%M:%S")
         )
