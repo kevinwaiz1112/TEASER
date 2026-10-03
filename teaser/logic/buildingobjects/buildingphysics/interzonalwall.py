@@ -231,7 +231,7 @@ class InterzonalWall(Wall):
                 else:
                     raise ValueError('Instance of InterzonalWall not known')
 
-        BuildingElement.load_type_element(
+        return BuildingElement.load_type_element(
             self,
             year=year,
             construction=construction,

@@ -8,6 +8,105 @@ from mako.lookup import TemplateLookup
 import teaser.logic.utilities as utilities
 
 
+def _plain_list(value):
+    """Convert sequence-like values to plain Python lists."""
+    if value is None:
+        return []
+    return list(value)
+
+
+def _plain_nested_list(value):
+    """Convert a sequence of sequence-like rows to plain Python lists."""
+    return [list(row) for row in _plain_list(value)]
+
+
+def _prepare_five_element_interzonal_export(zone):
+    """Return dimensionally consistent FiveElement interzonal record data.
+
+    AixLib keeps ``nNZs >= 1`` for backwards compatibility. A thermal zone
+    without neighbouring-zone borders is therefore represented by one inert
+    placeholder entry with ``ANZ={0}``. For real neighbouring-zone borders,
+    every exported array is checked against ``len(ANZ)`` so a stale counter or
+    partially populated calculation result cannot generate invalid Modelica.
+    """
+    attr = zone.model_attr
+    areas = _plain_list(getattr(attr, "area_nzb", []))
+    n_rc = max(int(getattr(attr, "n_nzb", 1)), 1)
+    this_zone_index = zone.parent.thermal_zones.index(zone) + 1
+
+    if not areas:
+        tiny = 1e-5
+        return {
+            "nNZs": 1,
+            "ANZ": [0.0],
+            "hConNZ": [0.0],
+            "hConNZMethod": [3],
+            "surfaceOrientationNZ": [1],
+            "nNZ": n_rc,
+            "RNZ": [[tiny] * n_rc],
+            "RNZRem": [tiny],
+            "CNZ": [[tiny] * n_rc],
+            "otherNZIndex": [this_zone_index],
+        }
+
+    n_nzs = len(areas)
+    h_con = _plain_list(getattr(attr, "alpha_conv_inner_nzb", []))
+    h_con_method = _plain_list(getattr(attr, "h_con_calc_method_nzb", []))
+    orientation = _plain_list(getattr(attr, "surface_orientation_nzb", []))
+    r_nz = _plain_nested_list(getattr(attr, "r_nzb", []))
+    r_rem = _plain_list(getattr(attr, "r_rest_nzb", []))
+    c_nz = _plain_nested_list(getattr(attr, "c_nzb", []))
+    other = _plain_list(getattr(attr, "other_nz_indexes", []))
+
+    if not h_con_method:
+        h_con_method = [3] * n_nzs
+    if not orientation:
+        orientation = [1] * n_nzs
+
+    one_dimensional = {
+        "hConNZ": h_con,
+        "hConNZMethod": h_con_method,
+        "surfaceOrientationNZ": orientation,
+        "RNZRem": r_rem,
+        "otherNZIndex": other,
+    }
+    for name, values in one_dimensional.items():
+        if len(values) != n_nzs:
+            raise ValueError(
+                "Inconsistent FiveElement interzonal export data for zone "
+                f"'{zone.name}': nNZs={n_nzs} from ANZ, but {name} has "
+                f"length {len(values)}."
+            )
+
+    for name, rows in (("RNZ", r_nz), ("CNZ", c_nz)):
+        if len(rows) != n_nzs:
+            raise ValueError(
+                "Inconsistent FiveElement interzonal export data for zone "
+                f"'{zone.name}': nNZs={n_nzs} from ANZ, but {name} has "
+                f"{len(rows)} rows."
+            )
+        bad_rows = [i for i, row in enumerate(rows) if len(row) != n_rc]
+        if bad_rows:
+            raise ValueError(
+                "Inconsistent FiveElement interzonal RC dimensions for zone "
+                f"'{zone.name}': nNZ={n_rc}, but {name} rows {bad_rows} "
+                "have a different length."
+            )
+
+    return {
+        "nNZs": n_nzs,
+        "ANZ": areas,
+        "hConNZ": h_con,
+        "hConNZMethod": h_con_method,
+        "surfaceOrientationNZ": orientation,
+        "nNZ": n_rc,
+        "RNZ": r_nz,
+        "RNZRem": r_rem,
+        "CNZ": c_nz,
+        "otherNZIndex": [int(i) + 1 for i in other],
+    }
+
+
 def export_multizone(buildings, prj, path=None,
                      custom_multizone_template_path=None):
     """Exports models for AixLib library
@@ -193,7 +292,8 @@ def export_multizone(buildings, prj, path=None,
                 elif type(zone.model_attr).__name__ == "FourElement":
                     out_file.write(zone_template_4.render_unicode(zone=zone))
                 elif type(zone.model_attr).__name__ == "FiveElement":
-                    out_file.write(zone_template_5.render_unicode(zone=zone))
+                    nz = _prepare_five_element_interzonal_export(zone)
+                    out_file.write(zone_template_5.render_unicode(zone=zone, nz=nz))
 
                 out_file.close()
 

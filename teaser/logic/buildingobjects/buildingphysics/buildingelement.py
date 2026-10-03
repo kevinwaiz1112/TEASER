@@ -328,9 +328,10 @@ class BuildingElement(object):
         self._outer_convection = None
         self._outer_radiation = None
 
+        selected_key = None
         if type_element_key:
             try:
-                buildingelement_input.load_type_element_by_key(
+                selected_key = buildingelement_input.load_type_element_by_key(
                     element=self, key_str=type_element_key,
                     data_class=data_class, reverse_layers=reverse_layers
                 )
@@ -343,11 +344,28 @@ class BuildingElement(object):
                 type_element_key = None
 
         if not type_element_key:
-            buildingelement_input.load_type_element(
+            selected_key = buildingelement_input.load_type_element(
                 element=self, year=year, construction=construction,
                 data_class=data_class, element_type=element_type,
                 reverse_layers=reverse_layers
             )
+
+        missing = []
+        if self.inner_convection is None:
+            missing.append("inner_convection")
+        if self.inner_radiation is None:
+            missing.append("inner_radiation")
+        if not self.layer:
+            missing.append("layer")
+        if missing:
+            effective_type = element_type or type(self).__name__
+            raise ValueError(
+                "Type-element loading left required fields unset for "
+                f"element_type='{effective_type}', year={year}, "
+                f"construction='{construction}', selected_key='{selected_key}': "
+                + ", ".join(missing)
+            )
+        return selected_key
 
     def save_type_element(self, data_class=None):
         """Typical element saver.
