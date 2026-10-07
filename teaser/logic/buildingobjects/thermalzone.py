@@ -164,6 +164,15 @@ class ThermalZone(object):
         self.cooling_integral_time_s = 1.0
         self.cooling_delivery_time_constant_s = 0.0
 
+        # Optional public-LoD2 geometric shading table.  The table is reduced
+        # to six zone-level factors: wall {direct, sky diffuse, ground diffuse}
+        # and roof {direct, sky diffuse, ground diffuse}.  Defaults are neutral.
+        self.geometric_shading_enabled = False
+        self.geometric_shading_file_uri = ""
+        self.geometric_shading_table_name = "GeometricShading"
+        self.geometric_shading_columns = [2, 3, 4, 5, 6, 7]
+        self.geometric_shading_periodic = False
+
     def calc_zone_parameters(
             self,
             number_of_elements=2,
