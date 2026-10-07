@@ -1,6 +1,7 @@
 <%namespace file="/modelica_language/" import="get_true_false, get_list, min_orientations"/>
 
 <%
+from teaser.data.output.geometric_shading import modelica_column_matrix
 _heat_scenario = bool(getattr(zone, "heating_system_scenario_enabled", False))
 _heat_q_design = max(float(zone.model_attr.heat_load), 0.0)
 _heat_sizing = float(getattr(zone, "heating_sizing_factor", 10.0))
@@ -143,6 +144,9 @@ record ${zone.parent.name}_${zone.name} "${zone.parent.name}_${zone.name}"
     winterReduction = ${get_list(zone.use_conditions.winter_reduction_infiltration)},
     maxIrr = ${get_list(zone.model_attr.shading_max_irr)},
     shadingFactor = ${get_list(zone.model_attr.shading_g_total)},
+    geometricShadingByOrientation = ${get_true_false(getattr(zone, "geometric_shading_by_orientation", False))},
+    geometricShadingWallColumns = ${modelica_column_matrix(zone, "wall")},
+    geometricShadingRoofColumns = ${modelica_column_matrix(zone, "roof")},
     useGeometricShading = ${get_true_false(getattr(zone, "geometric_shading_enabled", False))},
     geometricShadingFileUri = "${getattr(zone, 'geometric_shading_file_uri', '')}",
     geometricShadingTableName = "${getattr(zone, 'geometric_shading_table_name', 'GeometricShading')}",

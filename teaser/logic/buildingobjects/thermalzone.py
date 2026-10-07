@@ -167,6 +167,9 @@ class ThermalZone(object):
         # Optional public-LoD2 geometric shading table.  The table is reduced
         # to six zone-level factors: wall {direct, sky diffuse, ground diffuse}
         # and roof {direct, sky diffuse, ground diffuse}.  Defaults are neutral.
+        self.geometric_shading_by_orientation = False
+        self.geometric_shading_wall_columns = None
+        self.geometric_shading_roof_columns = None
         self.geometric_shading_enabled = False
         self.geometric_shading_file_uri = ""
         self.geometric_shading_table_name = "GeometricShading"
